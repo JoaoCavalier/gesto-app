@@ -1,0 +1,16 @@
+void _addValue() {
+  if (_formKey.currentState!.validate()) {
+    setState(() {
+      Provider.of<ReceitasProvider>(context, listen: false).addReceita({
+        'nome': _receitasNomeController.text,
+        'valor': _receitasValorController.text,
+        'categoria': _receitasCategoriaController.text,
+      });
+      Provider.of<GraficoProvider>(context, listen: false).updateData();
+      _receitasNomeController.clear();
+      _receitasValorController.clear();
+      _receitasCategoriaController.clear();
+      _selectedCategory = 'Categorias';
+    });
+  }
+}
