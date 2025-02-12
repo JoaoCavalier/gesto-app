@@ -1,13 +1,10 @@
-// ignore_for_file: sort_child_properties_last
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
-import 'package:projeto_flutter/_common/my_colors.dart';
-import 'package:projeto_flutter/components/decoration_field_authentication.dart';
 import 'package:projeto_flutter/providers/despesas_provider.dart';
 import 'package:projeto_flutter/telas/cartao.dart';
 import 'package:projeto_flutter/telas/grafico.dart';
+import 'package:projeto_flutter/telas/objetivo.dart';
 import 'package:projeto_flutter/telas/usuario.dart';
 import 'package:provider/provider.dart';
 import 'package:projeto_flutter/services/authentication.service.dart';
@@ -23,18 +20,15 @@ class DespesasScreen extends StatefulWidget {
 
 class _DespesasScreenState extends State<DespesasScreen> {
   final TextEditingController _despesasNomeController = TextEditingController();
-  final TextEditingController _despesasValorController =
-      TextEditingController();
-  final TextEditingController _despesasCategoriaController =
-      TextEditingController();
+  final TextEditingController _despesasValorController = TextEditingController();
+  final TextEditingController _despesasCategoriaController = TextEditingController();
 
   final _formKey = GlobalKey<FormState>();
   bool _isExpanded = false;
   String _selectedCategory = 'Categorias';
 
   String formatCurrency(String value) {
-    final formatCurrency =
-        NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$');
+    final formatCurrency = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$');
     value = value.replaceAll("R\$", "").replaceAll(",", ".");
     double parsedValue = double.parse(value);
     String formattedValue = formatCurrency.format(parsedValue);
@@ -50,7 +44,6 @@ class _DespesasScreenState extends State<DespesasScreen> {
   void _addValue() {
     if (_formKey.currentState!.validate()) {
       setState(() {
-        // Obtém a data atual
         String currentDate = DateFormat('dd/MM/yyyy').format(DateTime.now());
 
         Provider.of<DespesasProvider>(context, listen: false).addDespesa({
@@ -75,32 +68,51 @@ class _DespesasScreenState extends State<DespesasScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Despesas"),
-        flexibleSpace: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: <Color>[
-                MyColors.greenBottomGradient,
-                MyColors.blackTopGradient
-              ],
-            ),
+        title: const Text(
+          "Despesas",
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
           ),
         ),
+        centerTitle: true,
+        backgroundColor: Colors.green, // AppBar verde
+        elevation: 0, // Remove a sombra da AppBar
       ),
       drawer: Drawer(
         child: ListView(
           children: [
+            DrawerHeader(
+              decoration: const BoxDecoration(
+                color: Colors.green, // Fundo verde
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  const Text(
+                    "Menu",
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+            ),
             ListTile(
-              leading: const Icon(Icons.person),
+              leading: const Icon(Icons.person, color: Colors.green),
               title: const Text("Usuário"),
               onTap: () {
                 Navigator.of(context).push(
                     MaterialPageRoute(builder: (context) => UsuarioScreen()));
               },
             ),
-            const Divider(color: MyColors.blackTopGradient),
+            const Divider(color: Colors.grey),
             ListTile(
-              leading: const Icon(Icons.home),
+              leading: const Icon(Icons.home, color: Colors.green),
               title: const Text("Home"),
               onTap: () {
                 Navigator.of(context).push(
@@ -108,7 +120,7 @@ class _DespesasScreenState extends State<DespesasScreen> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.attach_money_sharp),
+              leading: const Icon(Icons.attach_money_sharp, color: Colors.green),
               title: const Text("Receitas"),
               onTap: () {
                 Navigator.of(context).push(
@@ -116,7 +128,7 @@ class _DespesasScreenState extends State<DespesasScreen> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.money_off),
+              leading: const Icon(Icons.money_off, color: Colors.green),
               title: const Text("Despesas"),
               onTap: () {
                 Navigator.of(context).push(
@@ -124,7 +136,7 @@ class _DespesasScreenState extends State<DespesasScreen> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.credit_card),
+              leading: const Icon(Icons.credit_card, color: Colors.green),
               title: const Text("Cartão"),
               onTap: () {
                 Navigator.of(context).push(
@@ -132,14 +144,22 @@ class _DespesasScreenState extends State<DespesasScreen> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.auto_graph),
+              leading: const Icon(Icons.auto_graph, color: Colors.green),
               title: const Text("Gráficos"),
               onTap: () {
                 Navigator.of(context).push(
                     MaterialPageRoute(builder: (context) => GraficoScreen()));
               },
             ),
-            const Divider(color: MyColors.blackTopGradient),
+            ListTile(
+              leading: const Icon(Icons.task_alt, color: Colors.green),
+              title: const Text("Objetivos"),
+              onTap: () {
+                Navigator.of(context).push(
+                    MaterialPageRoute(builder: (context) => ObjetivoScreem()));
+              },
+            ),
+            const Divider(color: Colors.grey),
             ListTile(
               iconColor: Colors.red,
               leading: const Icon(Icons.logout),
@@ -154,7 +174,7 @@ class _DespesasScreenState extends State<DespesasScreen> {
       body: Stack(
         children: [
           Padding(
-            padding: const EdgeInsets.all(32.0),
+            padding: const EdgeInsets.all(16.0),
             child: SingleChildScrollView(
               child: Form(
                 key: _formKey,
@@ -162,8 +182,23 @@ class _DespesasScreenState extends State<DespesasScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    // Campo de Nome
                     TextFormField(
-                      decoration: getAuthenticationInputDecoration("Nome"),
+                      decoration: InputDecoration(
+                        labelText: 'Nome',
+                        labelStyle: TextStyle(color: Colors.black),
+                        filled: true,
+                        fillColor: Colors.grey[200],
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide.none,
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide(color: Colors.black, width: 1),
+                        ),
+                        contentPadding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                      ),
                       controller: _despesasNomeController,
                       keyboardType: TextInputType.text,
                       validator: (String? value) {
@@ -174,8 +209,23 @@ class _DespesasScreenState extends State<DespesasScreen> {
                       },
                     ),
                     const SizedBox(height: 16),
+                    // Campo de Valor
                     TextFormField(
-                      decoration: getAuthenticationInputDecoration("Valor"),
+                      decoration: InputDecoration(
+                        labelText: 'Valor',
+                        labelStyle: TextStyle(color: Colors.black),
+                        filled: true,
+                        fillColor: Colors.grey[200],
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide.none,
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide(color: Colors.black, width: 1),
+                        ),
+                        contentPadding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                      ),
                       controller: _despesasValorController,
                       keyboardType: TextInputType.number,
                       inputFormatters: [
@@ -207,6 +257,7 @@ class _DespesasScreenState extends State<DespesasScreen> {
                       },
                     ),
                     const SizedBox(height: 16),
+                    // Campo de Categorias
                     SizedBox(
                       child: FormField<String>(
                         validator: (String? value) {
@@ -221,9 +272,12 @@ class _DespesasScreenState extends State<DespesasScreen> {
                               Container(
                                 padding: const EdgeInsets.all(2),
                                 decoration: BoxDecoration(
-                                  border:
-                                      Border.all(color: Colors.black, width: 2),
-                                  borderRadius: BorderRadius.circular(12),
+                                  color: Colors.grey[200],
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                    color: _isExpanded ? Colors.black : Colors.transparent,
+                                    width: 1,
+                                  ),
                                 ),
                                 child: ExpansionPanelList(
                                   elevation: 0,
@@ -236,7 +290,12 @@ class _DespesasScreenState extends State<DespesasScreen> {
                                       headerBuilder: (BuildContext context,
                                           bool isExpanded) {
                                         return ListTile(
-                                          title: Text(_selectedCategory),
+                                          title: Text(
+                                            _selectedCategory,
+                                            style: TextStyle(
+                                              color: Colors.black,
+                                            ),
+                                          ),
                                         );
                                       },
                                       body: Column(
@@ -270,8 +329,16 @@ class _DespesasScreenState extends State<DespesasScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
+                    // Botão de Adicionar
                     ElevatedButton(
                       onPressed: _addValue,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                        minimumSize: Size(150, 48),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                      ),
                       child: const Text(
                         'Adicionar à Lista',
                         style: TextStyle(
@@ -279,43 +346,28 @@ class _DespesasScreenState extends State<DespesasScreen> {
                           color: Colors.white,
                         ),
                       ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
-                        minimumSize: Size(150, 48),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
                     ),
                     const SizedBox(height: 16),
+                    // Lista de Despesas
                     Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: List.generate(
                         Provider.of<DespesasProvider>(context).despesas.length,
                         (index) {
-                          return Container(
+                          return Card(
+                            elevation: 2.0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(15.0),
+                            ),
                             margin: const EdgeInsets.only(bottom: 8),
-                            decoration: BoxDecoration(
-                                color: Colors.white,
-                                border: Border.all(color: Colors.red),
-                                borderRadius: BorderRadius.circular(12),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.grey.withOpacity(0.5),
-                                    spreadRadius: 2,
-                                    blurRadius: 4,
-                                    offset: const Offset(0, 3),
-                                  )
-                                ]),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(16),
+                            child: Padding(
+                              padding: const EdgeInsets.all(16.0),
+                              child: Row(
+                                children: [
+                                  Expanded(
                                     child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
+                                      crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
                                         Text(
                                           Provider.of<DespesasProvider>(context)
@@ -326,6 +378,7 @@ class _DespesasScreenState extends State<DespesasScreen> {
                                             fontWeight: FontWeight.bold,
                                           ),
                                         ),
+                                        const SizedBox(height: 8),
                                         Text(
                                           Provider.of<DespesasProvider>(context)
                                               .despesas[index]["valor"]!,
@@ -334,18 +387,16 @@ class _DespesasScreenState extends State<DespesasScreen> {
                                             color: Colors.black,
                                           ),
                                         ),
-                                        const SizedBox(
-                                            height: 8), // Espaçamento menor
+                                        const SizedBox(height: 8),
                                         Text(
                                           Provider.of<DespesasProvider>(context)
-                                                  .despesas[index]
-                                              ["data"]!, // Exibe a data
+                                                  .despesas[index]["data"]!,
                                           style: const TextStyle(
                                             fontSize: 14,
                                             color: Colors.grey,
                                           ),
                                         ),
-                                        const SizedBox(height: 16),
+                                        const SizedBox(height: 8),
                                         Text(
                                           Provider.of<DespesasProvider>(context)
                                               .despesas[index]["categoria"]!,
@@ -357,15 +408,15 @@ class _DespesasScreenState extends State<DespesasScreen> {
                                       ],
                                     ),
                                   ),
-                                ),
-                                IconButton(
-                                  icon: const Icon(Icons.delete),
-                                  color: Colors.red,
-                                  onPressed: () {
-                                    _removeValue(index);
-                                  },
-                                ),
-                              ],
+                                  IconButton(
+                                    icon: const Icon(Icons.delete),
+                                    color: Colors.red,
+                                    onPressed: () {
+                                      _removeValue(index);
+                                    },
+                                  ),
+                                ],
+                              ),
                             ),
                           );
                         },
@@ -383,8 +434,7 @@ class _DespesasScreenState extends State<DespesasScreen> {
 
   Widget _buildCategoryItem(String categoryName) {
     return Container(
-      margin:
-          const EdgeInsets.symmetric(vertical: 4), // Espaçamento vertical menor
+      margin: const EdgeInsets.symmetric(vertical: 4),
       decoration: BoxDecoration(
         border: const Border(
           top: BorderSide(width: 1.0, color: Colors.black),

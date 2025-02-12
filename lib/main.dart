@@ -6,10 +6,12 @@ import 'package:projeto_flutter/providers/despesas_provider.dart';
 import 'package:projeto_flutter/providers/receitas_provider.dart';
 import 'package:projeto_flutter/telas/home.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  final prefs = await SharedPreferences.getInstance();
 
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
@@ -20,6 +22,7 @@ void main() async {
       providers: [
         ChangeNotifierProvider(create: (_) => ReceitasProvider()),
         ChangeNotifierProvider(create: (_) => DespesasProvider()),
+        Provider<SharedPreferences>.value(value: prefs),
       ],
       child: MyApp(),
     ),

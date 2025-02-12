@@ -1,13 +1,15 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/widgets.dart';
-import 'package:projeto_flutter/services/authentication.service.dart';
-import 'package:projeto_flutter/telas/cartao.dart';
-import 'package:projeto_flutter/telas/despesas.dart';
-import 'package:projeto_flutter/telas/home.dart';
-import 'package:projeto_flutter/telas/receitas.dart';
-import 'package:projeto_flutter/_common/my_colors.dart';
-import 'package:projeto_flutter/telas/usuario.dart';
+import 'package:fl_chart/fl_chart.dart';
+import 'package:projeto_flutter/providers/despesas_provider.dart';
+import 'package:projeto_flutter/providers/receitas_provider.dart';
+import 'package:provider/provider.dart';
+
+class FinancialData {
+  final String category;
+  final double amount;
+
+  FinancialData(this.category, this.amount);
+}
 
 class GraficoScreen extends StatefulWidget {
   const GraficoScreen({super.key});
@@ -17,87 +19,69 @@ class GraficoScreen extends StatefulWidget {
 }
 
 class _GraficoScreenState extends State<GraficoScreen> {
- 
   @override
   Widget build(BuildContext context) {
+    final despesas = Provider.of<DespesasProvider>(context).despesas;
+    final receitas = Provider.of<ReceitasProvider>(context).receitas;
+
+    double totalDespesas = 0;
+    double totalReceitas = 0;
+
+    for (var despesa in despesas) {
+      totalDespesas += double.parse(despesa['valor']!.replaceAll('R\$', '').replaceAll(',', '.'));
+    }
+
+    for (var receita in receitas) {
+      totalReceitas += double.parse(receita['valor']!.replaceAll('R\$', '').replaceAll(',', '.'));
+    }
+
+    final data = [
+      FinancialData('Despesas', totalDespesas),
+      FinancialData('Receitas', totalReceitas),
+    ];
 
     return Scaffold(
       appBar: AppBar(
         title: const Text("Gráficos"),
-        flexibleSpace: Container(
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: <Color>[
-                MyColors.greenBottomGradient,
-                MyColors.blackTopGradient
-              ],
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: BarChart(
+          BarChartData(
+            titlesData: FlTitlesData(
+              leftTitles: AxisTitles(
+                sideTitles: SideTitles(
+                  showTitles: true,
+                  reservedSize: 40, // Ajuste o espaço reservado para os títulos do lado esquerdo
+                ),
+              ),
+              bottomTitles: AxisTitles(
+                sideTitles: SideTitles(
+                  showTitles: true,
+                  reservedSize: 40, // Ajuste o espaço reservado para os títulos na parte inferior
+                ),
+              ),
+            ),
+            borderData: FlBorderData(show: false),
+            barGroups: data.map((financialData) {
+              return BarChartGroupData(
+                x: data.indexOf(financialData),
+                barRods: [
+                  BarChartRodData(
+                    toY: financialData.amount,
+                    color: financialData.category == 'Despesas' ? Colors.red : Colors.green,
+                    width: 30, // Ajuste a largura das barras
+                  ),
+                ],
+              );
+            }).toList(),
+            gridData: FlGridData(show: false), // Desative a grade se não for necessária
+            barTouchData: BarTouchData(
+              touchTooltipData: BarTouchTooltipData(
+                tooltipBgColor: Colors.blueAccent,
+              ),
             ),
           ),
-        ),
-      ),
-      // body: new charts.LineChart(seriesList()),
-      drawer: Drawer(
-        child: ListView(
-          children: [
-            ListTile(
-              leading: const Icon(Icons.person),
-              title: const Text("Usuário"),
-              onTap: () {
-                Navigator.of(context).push(
-                    MaterialPageRoute(builder: (context) => UsuarioScreen()));
-              },
-            ),
-            const Divider(color: MyColors.blackTopGradient),
-            ListTile(
-              leading: const Icon(Icons.home),
-              title: const Text("Home"),
-              onTap: () {
-                Navigator.of(context).push(
-                    MaterialPageRoute(builder: (context) => HomeScreen()));
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.attach_money_sharp),
-              title: const Text("Receitas"),
-              onTap: () {
-                Navigator.of(context).push(
-                    MaterialPageRoute(builder: (context) => ReceitasScreen()));
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.money_off),
-              title: const Text("Despesas"),
-              onTap: () {
-                Navigator.of(context).push(
-                    MaterialPageRoute(builder: (context) => DespesasScreen()));
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.credit_card),
-              title: const Text("Cartão"),
-              onTap: () {
-                Navigator.of(context).push(
-                    MaterialPageRoute(builder: (context) => CartaoScreen()));
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.auto_graph),
-              title: const Text("Gráficos"),
-              onTap: () {
-                Navigator.of(context).push(
-                    MaterialPageRoute(builder: (context) => GraficoScreen()));
-              },
-            ),
-            const Divider(color: MyColors.blackTopGradient),
-            ListTile(
-              iconColor: Colors.red,
-              leading: const Icon(Icons.logout),
-              title: const Text("Logout"),
-              onTap: () {
-                AuthenticationService().logout();
-              },
-            ),
-          ],
         ),
       ),
     );
