@@ -1,75 +1,119 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
-import 'package:projeto_flutter/providers/despesas_provider.dart';
+import 'package:provider/provider.dart';
+import 'package:projeto_flutter/telas/objetivo.dart';
+import 'package:projeto_flutter/services/authentication.service.dart';
 import 'package:projeto_flutter/telas/cartao.dart';
 import 'package:projeto_flutter/telas/grafico.dart';
-import 'package:projeto_flutter/telas/objetivo.dart';
-import 'package:projeto_flutter/telas/usuario.dart';
-import 'package:provider/provider.dart';
-import 'package:projeto_flutter/services/authentication.service.dart';
 import 'package:projeto_flutter/telas/home.dart';
-import 'package:projeto_flutter/telas/receitas.dart';
+import 'package:projeto_flutter/telas/usuario.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-class DespesasScreen extends StatefulWidget {
-  const DespesasScreen({super.key});
+// Tela de Movimentações
+class MovimentacoesScreen extends StatefulWidget {
+  const MovimentacoesScreen({super.key});
 
   @override
-  State<DespesasScreen> createState() => _DespesasScreenState();
+  State<MovimentacoesScreen> createState() => _MovimentacoesScreenState();
 }
 
-class _DespesasScreenState extends State<DespesasScreen> {
-  final TextEditingController _despesasNomeController = TextEditingController();
-  final TextEditingController _despesasValorController = TextEditingController();
-  final TextEditingController _despesasCategoriaController = TextEditingController();
+class _MovimentacoesScreenState extends State<MovimentacoesScreen> {
+  final TextEditingController _nomeController = TextEditingController();
+  final TextEditingController _valorController = TextEditingController();
+  final TextEditingController _categoriaController = TextEditingController();
 
   final _formKey = GlobalKey<FormState>();
   bool _isExpanded = false;
+  bool _isTypeExpanded = false; // Controla a expansão do painel de tipo
   String _selectedCategory = 'Categorias';
+  String _selectedType = 'Receita'; // 'Receita' ou 'Despesa'
 
+  final List<String> _receitasCategories = [
+    'Salário',
+    'Investimento',
+    'Presente'
+  ];
+  final List<String> _despesasCategories = ['Casa', 'Educação', 'Lazer'];
+
+  // Formata o valor monetário
   String formatCurrency(String value) {
-    final formatCurrency = NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$');
+    final formatCurrency =
+        NumberFormat.currency(locale: 'pt_BR', symbol: 'R\$');
     value = value.replaceAll("R\$", "").replaceAll(",", ".");
     double parsedValue = double.parse(value);
     String formattedValue = formatCurrency.format(parsedValue);
     return formattedValue;
   }
 
+  // Controla a expansão do painel de categorias
   void _handleExpansion(bool isExpanded) {
     setState(() {
       _isExpanded = isExpanded;
     });
   }
 
+  // Controla a expansão do painel de tipo
+  void _handleTypeExpansion(bool isExpanded) {
+    setState(() {
+      _isTypeExpanded = isExpanded;
+    });
+  }
+
+  // Adiciona uma nova movimentação
   void _addValue() {
     if (_formKey.currentState!.validate()) {
       setState(() {
         String currentDate = DateFormat('dd/MM/yyyy').format(DateTime.now());
 
-        Provider.of<DespesasProvider>(context, listen: false).addDespesa({
-          'nome': _despesasNomeController.text,
-          'valor': _despesasValorController.text,
-          'categoria': _despesasCategoriaController.text,
-          'data': currentDate, // Adiciona a data
+        Provider.of<MovimentacoesProvider>(context, listen: false)
+            .addMovimentacao({
+          'tipo': _selectedType,
+          'nome': _nomeController.text,
+          'valor': _valorController.text,
+          'categoria': _categoriaController.text,
+          'data': currentDate,
         });
-        _despesasNomeController.clear();
-        _despesasValorController.clear();
-        _despesasCategoriaController.clear();
+        _nomeController.clear();
+        _valorController.clear();
+        _categoriaController.clear();
         _selectedCategory = 'Categorias';
       });
     }
   }
 
+  // Remove uma movimentação
   void _removeValue(int index) {
-    Provider.of<DespesasProvider>(context, listen: false).removeDespesa(index);
+    Provider.of<MovimentacoesProvider>(context, listen: false)
+        .removeMovimentacao(index);
+  }
+
+  // Navega para outra tela com um indicador de carregamento
+  void _navigateWithLoading(BuildContext context, Widget screen) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+
+    Future.delayed(const Duration(seconds: 1), () {
+      Navigator.of(context).pop();
+      Navigator.of(context)
+          .push(MaterialPageRoute(builder: (context) => screen));
+    });
   }
 
   @override
   Widget build(BuildContext context) {
+    String? userName =
+        Provider.of<SharedPreferences>(context).getString('userName');
+
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          "Despesas",
+          "Movimentações",
           style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.bold,
@@ -77,15 +121,16 @@ class _DespesasScreenState extends State<DespesasScreen> {
           ),
         ),
         centerTitle: true,
-        backgroundColor: Colors.green, // AppBar verde
-        elevation: 0, // Remove a sombra da AppBar
+        backgroundColor: Colors.green,
+        elevation: 0,
       ),
+      // Drawer com o menu de navegação
       drawer: Drawer(
         child: ListView(
           children: [
             DrawerHeader(
               decoration: const BoxDecoration(
-                color: Colors.green, // Fundo verde
+                color: Colors.green,
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -99,6 +144,14 @@ class _DespesasScreenState extends State<DespesasScreen> {
                       color: Colors.white,
                     ),
                   ),
+                  if (userName != null && userName.isNotEmpty)
+                    Text(
+                      "Olá, $userName!",
+                      style: const TextStyle(
+                        fontSize: 16,
+                        color: Colors.white,
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -106,8 +159,7 @@ class _DespesasScreenState extends State<DespesasScreen> {
               leading: const Icon(Icons.person, color: Colors.green),
               title: const Text("Usuário"),
               onTap: () {
-                Navigator.of(context).push(
-                    MaterialPageRoute(builder: (context) => UsuarioScreen()));
+                _navigateWithLoading(context, const UsuarioScreen());
               },
             ),
             const Divider(color: Colors.grey),
@@ -115,48 +167,37 @@ class _DespesasScreenState extends State<DespesasScreen> {
               leading: const Icon(Icons.home, color: Colors.green),
               title: const Text("Home"),
               onTap: () {
-                Navigator.of(context).push(
-                    MaterialPageRoute(builder: (context) => HomeScreen()));
+                _navigateWithLoading(context, const HomeScreen());
               },
             ),
             ListTile(
-              leading: const Icon(Icons.attach_money_sharp, color: Colors.green),
-              title: const Text("Receitas"),
+              leading:
+                  const Icon(Icons.attach_money_sharp, color: Colors.green),
+              title: const Text("Movimentações"),
               onTap: () {
-                Navigator.of(context).push(
-                    MaterialPageRoute(builder: (context) => ReceitasScreen()));
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.money_off, color: Colors.green),
-              title: const Text("Despesas"),
-              onTap: () {
-                Navigator.of(context).push(
-                    MaterialPageRoute(builder: (context) => DespesasScreen()));
+                Navigator.of(context).push(MaterialPageRoute(
+                    builder: (context) => const MovimentacoesScreen()));
               },
             ),
             ListTile(
               leading: const Icon(Icons.credit_card, color: Colors.green),
-              title: const Text("Cartão"),
+              title: const Text("Conta Bancaria"),
               onTap: () {
-                Navigator.of(context).push(
-                    MaterialPageRoute(builder: (context) => CartaoScreen()));
+                _navigateWithLoading(context, const CartaoScreen());
               },
             ),
             ListTile(
               leading: const Icon(Icons.auto_graph, color: Colors.green),
               title: const Text("Gráficos"),
               onTap: () {
-                Navigator.of(context).push(
-                    MaterialPageRoute(builder: (context) => GraficoScreen()));
+                _navigateWithLoading(context, const GraficoScreen());
               },
             ),
             ListTile(
               leading: const Icon(Icons.task_alt, color: Colors.green),
               title: const Text("Objetivos"),
               onTap: () {
-                Navigator.of(context).push(
-                    MaterialPageRoute(builder: (context) => ObjetivoScreem()));
+                _navigateWithLoading(context, const ObjetivoScreen());
               },
             ),
             const Divider(color: Colors.grey),
@@ -182,6 +223,59 @@ class _DespesasScreenState extends State<DespesasScreen> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    const SizedBox(height: 10),
+                    // Seletor de Tipo (Receita ou Despesa)
+                    Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[200],
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: _isTypeExpanded
+                              ? Colors.black
+                              : Colors.transparent,
+                          width: 1,
+                        ),
+                      ),
+                      child: ExpansionPanelList(
+                        elevation: 0,
+                        expansionCallback: (int index, bool isExpanded) {
+                          _handleTypeExpansion(isExpanded);
+                        },
+                        children: [
+                          ExpansionPanel(
+                            headerBuilder:
+                                (BuildContext context, bool isExpanded) {
+                              return ListTile(
+                                title: Text(
+                                  _selectedType,
+                                  style: TextStyle(
+                                    color: Colors.black,
+                                  ),
+                                ),
+                              );
+                            },
+                            body: Column(
+                              children: ['Receita', 'Despesa']
+                                  .map((type) => ListTile(
+                                        title: Text(type),
+                                        onTap: () {
+                                          setState(() {
+                                            _selectedType = type;
+                                            _selectedCategory = 'Categorias';
+                                            _categoriaController.clear();
+                                            _handleTypeExpansion(false);
+                                          });
+                                        },
+                                      ))
+                                  .toList(),
+                            ),
+                            isExpanded: _isTypeExpanded,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
                     // Campo de Nome
                     TextFormField(
                       decoration: InputDecoration(
@@ -197,9 +291,10 @@ class _DespesasScreenState extends State<DespesasScreen> {
                           borderRadius: BorderRadius.circular(10),
                           borderSide: BorderSide(color: Colors.black, width: 1),
                         ),
-                        contentPadding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                        contentPadding:
+                            EdgeInsets.symmetric(vertical: 12, horizontal: 16),
                       ),
-                      controller: _despesasNomeController,
+                      controller: _nomeController,
                       keyboardType: TextInputType.text,
                       validator: (String? value) {
                         if (value == null || value.isEmpty) {
@@ -224,9 +319,10 @@ class _DespesasScreenState extends State<DespesasScreen> {
                           borderRadius: BorderRadius.circular(10),
                           borderSide: BorderSide(color: Colors.black, width: 1),
                         ),
-                        contentPadding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                        contentPadding:
+                            EdgeInsets.symmetric(vertical: 12, horizontal: 16),
                       ),
-                      controller: _despesasValorController,
+                      controller: _valorController,
                       keyboardType: TextInputType.number,
                       inputFormatters: [
                         FilteringTextInputFormatter.digitsOnly,
@@ -275,7 +371,9 @@ class _DespesasScreenState extends State<DespesasScreen> {
                                   color: Colors.grey[200],
                                   borderRadius: BorderRadius.circular(10),
                                   border: Border.all(
-                                    color: _isExpanded ? Colors.black : Colors.transparent,
+                                    color: _isExpanded
+                                        ? Colors.black
+                                        : Colors.transparent,
                                     width: 1,
                                   ),
                                 ),
@@ -299,12 +397,17 @@ class _DespesasScreenState extends State<DespesasScreen> {
                                         );
                                       },
                                       body: Column(
-                                        children: <Widget>[
-                                          _buildCategoryItem("Casa"),
-                                          _buildCategoryItem("Educação"),
-                                          _buildCategoryItem("Lazer"),
-                                          _buildCategoryItem("Viagem"),
-                                        ],
+                                        children: _selectedType == 'Receita'
+                                            ? _receitasCategories
+                                                .map((category) =>
+                                                    _buildCategoryItem(
+                                                        category))
+                                                .toList()
+                                            : _despesasCategories
+                                                .map((category) =>
+                                                    _buildCategoryItem(
+                                                        category))
+                                                .toList(),
                                       ),
                                       isExpanded: _isExpanded,
                                     ),
@@ -333,7 +436,9 @@ class _DespesasScreenState extends State<DespesasScreen> {
                     ElevatedButton(
                       onPressed: _addValue,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
+                        backgroundColor: _selectedType == 'Receita'
+                            ? Colors.green
+                            : Colors.red,
                         minimumSize: Size(150, 48),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(10),
@@ -348,13 +453,18 @@ class _DespesasScreenState extends State<DespesasScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    // Lista de Despesas
+                    // Lista de Movimentações
                     Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: List.generate(
-                        Provider.of<DespesasProvider>(context).despesas.length,
+                        Provider.of<MovimentacoesProvider>(context)
+                            .movimentacoes
+                            .length,
                         (index) {
+                          final movimentacao =
+                              Provider.of<MovimentacoesProvider>(context)
+                                  .movimentacoes[index];
                           return Card(
                             elevation: 2.0,
                             shape: RoundedRectangleBorder(
@@ -367,11 +477,11 @@ class _DespesasScreenState extends State<DespesasScreen> {
                                 children: [
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Text(
-                                          Provider.of<DespesasProvider>(context)
-                                              .despesas[index]["nome"]!,
+                                          movimentacao["nome"]!,
                                           style: const TextStyle(
                                             fontSize: 18,
                                             color: Colors.black,
@@ -380,17 +490,18 @@ class _DespesasScreenState extends State<DespesasScreen> {
                                         ),
                                         const SizedBox(height: 8),
                                         Text(
-                                          Provider.of<DespesasProvider>(context)
-                                              .despesas[index]["valor"]!,
-                                          style: const TextStyle(
+                                          movimentacao["valor"]!,
+                                          style: TextStyle(
                                             fontSize: 16,
-                                            color: Colors.black,
+                                            color: movimentacao["tipo"] ==
+                                                    'Receita'
+                                                ? Colors.green
+                                                : Colors.red,
                                           ),
                                         ),
                                         const SizedBox(height: 8),
                                         Text(
-                                          Provider.of<DespesasProvider>(context)
-                                                  .despesas[index]["data"]!,
+                                          movimentacao["data"]!,
                                           style: const TextStyle(
                                             fontSize: 14,
                                             color: Colors.grey,
@@ -398,11 +509,13 @@ class _DespesasScreenState extends State<DespesasScreen> {
                                         ),
                                         const SizedBox(height: 8),
                                         Text(
-                                          Provider.of<DespesasProvider>(context)
-                                              .despesas[index]["categoria"]!,
-                                          style: const TextStyle(
+                                          movimentacao["categoria"]!,
+                                          style: TextStyle(
                                             fontSize: 16,
-                                            color: Colors.red,
+                                            color: movimentacao["tipo"] ==
+                                                    'Receita'
+                                                ? Colors.green
+                                                : Colors.red,
                                           ),
                                         ),
                                       ],
@@ -432,6 +545,7 @@ class _DespesasScreenState extends State<DespesasScreen> {
     );
   }
 
+  // Constrói um item de categoria
   Widget _buildCategoryItem(String categoryName) {
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 4),
@@ -452,12 +566,113 @@ class _DespesasScreenState extends State<DespesasScreen> {
         title: Text(categoryName),
         onTap: () {
           setState(() {
-            _despesasCategoriaController.text = categoryName;
+            _categoriaController.text = categoryName;
             _selectedCategory = categoryName;
             _handleExpansion(false); // Fecha o painel após a seleção
           });
         },
       ),
     );
+  }
+}
+
+class MovimentacoesProvider with ChangeNotifier {
+  final List<Map<String, String>> _movimentacoes = [];
+  final List<Map<String, dynamic>> _transacoesCartao = [];
+
+  List<Map<String, String>> get movimentacoes => _movimentacoes;
+  List<Map<String, dynamic>> get transacoesCartao => _transacoesCartao;
+
+  // Chaves para salvar no SharedPreferences
+  static const String _movimentacoesKey = 'movimentacoes';
+  static const String _transacoesCartaoKey = 'transacoesCartao';
+
+  MovimentacoesProvider() {
+    _loadMovimentacoes();
+    _loadTransacoesCartao();
+  }
+
+  // Carrega as movimentações salvas
+  Future<void> _loadMovimentacoes() async {
+    final prefs = await SharedPreferences.getInstance();
+    final movimentacoesJson = prefs.getStringList(_movimentacoesKey);
+    if (movimentacoesJson != null) {
+      _movimentacoes.addAll(
+        movimentacoesJson
+            .map((json) => Map<String, String>.from(jsonDecode(json)))
+            .toList(),
+      );
+      notifyListeners();
+    }
+  }
+
+  // Carrega as transações do cartão salvas
+  Future<void> _loadTransacoesCartao() async {
+    final prefs = await SharedPreferences.getInstance();
+    final transacoesJson = prefs.getStringList(_transacoesCartaoKey);
+    if (transacoesJson != null) {
+      _transacoesCartao.addAll(
+        transacoesJson
+            .map((json) => Map<String, dynamic>.from(jsonDecode(json)))
+            .toList(),
+      );
+      notifyListeners();
+    }
+  }
+
+  // Salva as movimentações no SharedPreferences
+  Future<void> _saveMovimentacoes() async {
+    final prefs = await SharedPreferences.getInstance();
+    final movimentacoesJson =
+        _movimentacoes.map((mov) => jsonEncode(mov)).toList();
+    await prefs.setStringList(_movimentacoesKey, movimentacoesJson);
+  }
+
+  // Salva as transações do cartão no SharedPreferences
+  Future<void> _saveTransacoesCartao() async {
+    final prefs = await SharedPreferences.getInstance();
+    final transacoesJson =
+        _transacoesCartao.map((trans) => jsonEncode(trans)).toList();
+    await prefs.setStringList(_transacoesCartaoKey, transacoesJson);
+  }
+
+  // Adiciona uma movimentação e salva no SharedPreferences
+  void addMovimentacao(Map<String, String> movimentacao) {
+    _movimentacoes.add(movimentacao);
+    _saveMovimentacoes();
+    notifyListeners();
+  }
+
+  // Remove uma movimentação e salva no SharedPreferences
+  void removeMovimentacao(int index) {
+    _movimentacoes.removeAt(index);
+    _saveMovimentacoes();
+    notifyListeners();
+  }
+
+  // Adiciona uma transação do cartão e salva no SharedPreferences
+  void addTransacaoCartao(Map<String, dynamic> transacao) {
+    _transacoesCartao.add(transacao);
+    _saveTransacoesCartao();
+    notifyListeners();
+  }
+
+  // Remove uma transação do cartão e salva no SharedPreferences
+  void removeTransacaoCartao(int index) {
+    _transacoesCartao.removeAt(index);
+    _saveTransacoesCartao();
+    notifyListeners();
+  }
+
+  // Método para limpar todas as movimentações e transações do cartão
+  Future<void> clearAllData() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_movimentacoesKey); // Remove as movimentações salvas
+    await prefs
+        .remove(_transacoesCartaoKey); // Remove as transações do cartão salvas
+    _movimentacoes.clear(); // Limpa a lista de movimentações em memória
+    _transacoesCartao
+        .clear(); // Limpa a lista de transações do cartão em memória
+    notifyListeners(); // Notifica os ouvintes para atualizar a UI
   }
 }

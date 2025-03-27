@@ -2,9 +2,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:projeto_flutter/telas/authentication_tela.dart';
-import 'package:projeto_flutter/providers/despesas_provider.dart';
-import 'package:projeto_flutter/providers/receitas_provider.dart';
 import 'package:projeto_flutter/telas/home.dart';
+import 'package:projeto_flutter/telas/movimentacoes.dart';
+import 'package:projeto_flutter/telas/objetivo.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'firebase_options.dart';
@@ -20,8 +20,8 @@ void main() async {
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => ReceitasProvider()),
-        ChangeNotifierProvider(create: (_) => DespesasProvider()),
+        ChangeNotifierProvider(create: (_) => MovimentacoesProvider()),
+        ChangeNotifierProvider(create: (context) => ObjetivoProvider()),
         Provider<SharedPreferences>.value(value: prefs),
       ],
       child: MyApp(),
