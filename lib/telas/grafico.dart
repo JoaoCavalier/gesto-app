@@ -4,6 +4,7 @@ import 'package:syncfusion_flutter_gauges/gauges.dart';
 import 'package:provider/provider.dart';
 import 'package:projeto_flutter/telas/movimentacoes.dart';
 import 'package:projeto_flutter/telas/objetivo.dart';
+import 'package:intl/intl.dart';
 
 class GraficoScreen extends StatefulWidget {
   const GraficoScreen({super.key});
@@ -13,10 +14,36 @@ class GraficoScreen extends StatefulWidget {
 }
 
 class _GraficoScreenState extends State<GraficoScreen> {
-  int _selectedChartIndex = 0; // 0 para linha, 1 para gauge, 2 para coluna
+  int _selectedChartIndex = 0;
   DateTime? _dataInicial;
   DateTime? _dataFinal;
   final PageController _pageController = PageController();
+  final NumberFormat _formatoReal = NumberFormat.currency(
+    locale: 'pt_BR',
+    symbol: 'R\$',
+    decimalDigits: 2,
+  );
+
+  // Paleta de cores para Receitas (tons de verde)
+  final List<Color> _coresReceitas = [
+    const Color(0xFF2E7D32),
+    const Color(0xFF4CAF50),
+    const Color(0xFF81C784),
+
+  ];
+
+  // Paleta de cores para Despesas (tons de vermelho)
+  final List<Color> _coresDespesas = [
+    const Color(0xFFC62828),
+    const Color(0xFFF44336),
+    const Color(0xFFE57373),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    Provider.of<ObjetivoProvider>(context, listen: false).carregarObjetivos();
+  }
 
   void _switchChart() {
     setState(() {
@@ -85,6 +112,36 @@ class _GraficoScreenState extends State<GraficoScreen> {
 
       return dentroDoIntervalo;
     }).toList();
+  }
+
+  Widget _buildInfoItem(String label, double value, Color color) {
+    return Column(
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.grey[600],
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          _formatoReal.format(value),
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+      ],
+    );
+  }
+
+  double _calculateInterval(double range) {
+    if (range <= 500) return 100;
+    if (range <= 1000) return 200;
+    if (range <= 5000) return 500;
+    return 1000;
   }
 
   @override
@@ -250,7 +307,11 @@ class _GraficoScreenState extends State<GraficoScreen> {
 
   Widget _buildLineChart(List<Map<String, String>> movimentacoes) {
     List<FlSpot> saldoAcumulado = [];
+    List<String> datas = [];
     double saldo = 0;
+    double saldoMaximo = 0;
+    double saldoMinimo = 0;
+    List<Map<String, dynamic>> tooltipData = [];
 
     for (int i = 0; i < movimentacoes.length; i++) {
       final movimentacao = movimentacoes[i];
@@ -261,341 +322,560 @@ class _GraficoScreenState extends State<GraficoScreen> {
       } else {
         saldo -= valor;
       }
+
+      if (saldo > saldoMaximo) saldoMaximo = saldo;
+      if (saldo < saldoMinimo) saldoMinimo = saldo;
+
       saldoAcumulado.add(FlSpot(i.toDouble(), saldo));
+      datas.add(movimentacao["data"]!);
+
+      tooltipData.add({
+        'data': movimentacao["data"]!,
+        'valor': movimentacao["valor"]!,
+        'tipo': movimentacao["tipo"]!,
+        'nome': movimentacao["nome"]!,
+        'saldo': saldo,
+      });
     }
 
     final Color lineColor = saldo >= 0 ? Colors.green : Colors.red;
+    final double saldoAtual =
+        saldoAcumulado.isNotEmpty ? saldoAcumulado.last.y.toDouble() : 0.0;
 
-    double minY = saldoAcumulado.isNotEmpty
-        ? saldoAcumulado.map((spot) => spot.y).reduce((a, b) => a < b ? a : b) -
-            100
-        : -500;
-    double maxY = saldoAcumulado.isNotEmpty
-        ? saldoAcumulado.map((spot) => spot.y).reduce((a, b) => a > b ? a : b) +
-            100
-        : 500;
+    double minY =
+        saldoAcumulado.isNotEmpty ? (saldoMinimo * 1.1).roundToDouble() : -500;
+    double maxY =
+        saldoAcumulado.isNotEmpty ? (saldoMaximo * 1.1).roundToDouble() : 500;
 
-    return LineChart(
-      LineChartData(
-        gridData: FlGridData(
-          show: true,
-          drawVerticalLine: true,
-          horizontalInterval: 500,
-          verticalInterval: 1,
-          getDrawingHorizontalLine: (value) {
-            return FlLine(
-              color: Colors.grey[300],
-              strokeWidth: 1,
-            );
-          },
-          getDrawingVerticalLine: (value) {
-            return FlLine(
-              color: Colors.grey[300],
-              strokeWidth: 1,
-            );
-          },
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _buildInfoItem("Saldo Atual", saldoAtual, lineColor),
+              _buildInfoItem("Máximo", saldoMaximo, Colors.blue),
+              _buildInfoItem("Mínimo", saldoMinimo, Colors.orange),
+            ],
+          ),
         ),
-        titlesData: FlTitlesData(
-          leftTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              reservedSize: 40,
-              interval: 500,
-              getTitlesWidget: (double value, TitleMeta meta) {
-                return Text(
-                  "R\$ ${value.toInt()}",
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Colors.black54,
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: LineChart(
+              LineChartData(
+                gridData: FlGridData(
+                  show: true,
+                  drawVerticalLine: false,
+                  horizontalInterval: _calculateInterval(maxY - minY),
+                  getDrawingHorizontalLine: (value) {
+                    return FlLine(
+                      color: Colors.grey[300]!,
+                      strokeWidth: 1,
+                    );
+                  },
+                ),
+                titlesData: FlTitlesData(
+                  show: true,
+                  rightTitles: AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
                   ),
-                );
-              },
-            ),
-          ),
-          bottomTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              reservedSize: 20,
-              interval: 1,
-              getTitlesWidget: (double value, TitleMeta meta) {
-                return Text(
-                  "${value.toInt() + 1}",
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Colors.black54,
+                  topTitles: AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
                   ),
-                );
-              },
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 22,
+                      interval: (movimentacoes.length / 5).ceilToDouble(),
+                      getTitlesWidget: (double value, TitleMeta meta) {
+                        final index = value.toInt();
+                        if (index >= 0 && index < datas.length) {
+                          return Padding(
+                            padding: const EdgeInsets.only(top: 8.0),
+                            child: Text(
+                              datas[index],
+                              style: const TextStyle(
+                                fontSize: 10,
+                                color: Colors.black54,
+                              ),
+                            ),
+                          );
+                        }
+                        return const Text('');
+                      },
+                    ),
+                  ),
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      interval: _calculateInterval(maxY - minY),
+                      reservedSize: 40,
+                      getTitlesWidget: (double value, TitleMeta meta) {
+                        return Text(
+                          _formatoReal.format(value),
+                          style: const TextStyle(
+                            fontSize: 10,
+                            color: Colors.black54,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                borderData: FlBorderData(
+                  show: true,
+                  border: Border.all(
+                    color: Colors.grey[400]!,
+                    width: 1,
+                  ),
+                ),
+                lineBarsData: [
+                  LineChartBarData(
+                    spots: saldoAcumulado,
+                    isCurved: true,
+                    color: lineColor,
+                    barWidth: 3,
+                    belowBarData: BarAreaData(
+                      show: true,
+                      color: lineColor.withOpacity(0.2),
+                    ),
+                    dotData: FlDotData(
+                      show: true,
+                      getDotPainter: (spot, percent, barData, index) {
+                        return FlDotCirclePainter(
+                          radius: 4,
+                          color: lineColor,
+                          strokeWidth: 2,
+                          strokeColor: Colors.white,
+                        );
+                      },
+                    ),
+                  ),
+                ],
+                lineTouchData: LineTouchData(
+                  enabled: true,
+                  touchTooltipData: LineTouchTooltipData(
+                    tooltipBgColor: Colors.grey[800]!,
+                    getTooltipItems: (List<LineBarSpot> touchedSpots) {
+                      return touchedSpots.map((spot) {
+                        final index = spot.spotIndex;
+                        final data = tooltipData[index];
+                        return LineTooltipItem(
+                          '${data['data']}\n'
+                          '${data['tipo']}: ${data['valor']}\n'
+                          'Saldo: ${_formatoReal.format(data['saldo'])}',
+                          const TextStyle(color: Colors.white),
+                        );
+                      }).toList();
+                    },
+                  ),
+                ),
+                minY: minY,
+                maxY: maxY,
+                extraLinesData: ExtraLinesData(
+                  horizontalLines: [
+                    HorizontalLine(
+                      y: 0,
+                      color: Colors.grey,
+                      strokeWidth: 1,
+                      dashArray: [5, 5],
+                    ),
+                    if (saldoMaximo != 0)
+                      HorizontalLine(
+                        y: saldoMaximo,
+                        color: Colors.blue.withOpacity(0.3),
+                        strokeWidth: 1,
+                        dashArray: [5, 5],
+                        label: HorizontalLineLabel(
+                          alignment: Alignment.centerRight,
+                          padding: const EdgeInsets.only(right: 8),
+                          labelResolver: (value) =>
+                              'Máximo: ${_formatoReal.format(value)}',
+                          style: TextStyle(
+                            color: Colors.blue,
+                            fontSize: 10,
+                          ),
+                        ),
+                      ),
+                    if (saldoMinimo != 0)
+                      HorizontalLine(
+                        y: saldoMinimo,
+                        color: Colors.orange.withOpacity(0.3),
+                        strokeWidth: 1,
+                        dashArray: [5, 5],
+                        label: HorizontalLineLabel(
+                          alignment: Alignment.centerRight,
+                          padding: const EdgeInsets.only(right: 8),
+                          labelResolver: (value) =>
+                              'Mínimo: ${_formatoReal.format(value)}',
+                          style: TextStyle(
+                            color: Colors.orange,
+                            fontSize: 10,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
             ),
           ),
         ),
-        borderData: FlBorderData(
-          show: true,
-          border: Border.all(
-            color: Colors.grey[400]!,
-            width: 1,
-          ),
-        ),
-        lineBarsData: [
-          LineChartBarData(
-            spots: saldoAcumulado,
-            isCurved: true,
-            color: lineColor,
-            barWidth: 3,
-            belowBarData: BarAreaData(
-              show: true,
-              color: lineColor.withOpacity(0.2),
-            ),
-            dotData: FlDotData(
-              show: true,
-              getDotPainter: (spot, percent, barData, index) {
-                return FlDotCirclePainter(
-                  radius: 4,
-                  color: lineColor,
-                  strokeWidth: 2,
-                  strokeColor: Colors.white,
-                );
-              },
-            ),
-          ),
-        ],
-        lineTouchData: LineTouchData(enabled: false),
-        minY: minY,
-        maxY: maxY,
-        extraLinesData: ExtraLinesData(
-          horizontalLines: [
-            HorizontalLine(
-              y: 0,
-              color: lineColor,
-              strokeWidth: 2,
-              dashArray: [5, 5],
-            ),
-          ],
-        ),
-      ),
+      ],
     );
   }
 
   Widget _buildGaugeChart(BuildContext context) {
-    final objetivoProvider =
-        Provider.of<ObjetivoProvider>(context, listen: true);
-    final objetivos = objetivoProvider.objetivosAtivos;
+    return Consumer<ObjetivoProvider>(
+      builder: (context, objetivoProvider, child) {
+        final objetivosAtivos = objetivoProvider.objetivosAtivos;
+        final metasBatidas = objetivoProvider.metasBatidas;
 
-    if (objetivos.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.flag, size: 50, color: Colors.grey[400]),
-            const SizedBox(height: 16),
-            const Text(
-              "Nenhum objetivo ativo",
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.grey,
-              ),
-            ),
-            const SizedBox(height: 8),
-            TextButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (context) => const ObjetivoScreen()),
-                );
-              },
-              child: const Text('Criar Objetivos'),
-            ),
-          ],
-        ),
-      );
-    }
+        final double totalMetas =
+            (objetivosAtivos.fold<double>(0.0, (sum, obj) => sum + obj.meta)) +
+                (metasBatidas.fold<double>(0.0, (sum, obj) => sum + obj.meta));
 
-    double totalMeta = objetivos.fold(0, (sum, obj) => sum + obj.meta);
-    double totalAtual = objetivos.fold(0, (sum, obj) => sum + obj.valorAtual);
-    double progresso = (totalAtual / totalMeta) * 100;
-    double restante = totalMeta - totalAtual;
+        final double totalAtual = (objetivosAtivos.fold<double>(
+                0.0, (sum, obj) => sum + obj.valorAtual)) +
+            (metasBatidas.fold<double>(0.0, (sum, obj) => sum + obj.meta));
 
-    return SingleChildScrollView(
-      child: Column(
-        children: [
-          const SizedBox(height: 20),
-          Text(
-            "Progresso dos Objetivos",
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.green[700],
-            ),
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            height: 220,
-            child: SfRadialGauge(
-              axes: <RadialAxis>[
-                RadialAxis(
-                  minimum: 0,
-                  maximum: 100,
-                  showLabels: true,
-                  showTicks: true,
-                  radiusFactor: 0.8,
-                  axisLineStyle: AxisLineStyle(
-                    thickness: 0.2,
-                    color: Colors.grey.withOpacity(0.2),
-                    thicknessUnit: GaugeSizeUnit.factor,
-                  ),
-                  ranges: <GaugeRange>[
-                    GaugeRange(
-                      startValue: 0,
-                      endValue: progresso,
-                      color: Colors.green,
-                      startWidth: 0.2,
-                      endWidth: 0.2,
-                    ),
-                  ],
-                  pointers: <GaugePointer>[
-                    NeedlePointer(
-                      value: progresso,
-                      needleLength: 0.6,
-                      needleStartWidth: 1,
-                      needleEndWidth: 5,
-                      knobStyle: KnobStyle(
-                        knobRadius: 0.08,
-                        color: Colors.green,
+        final double progresso =
+            totalMetas > 0 ? (totalAtual / totalMetas) * 100 : 0.0;
+        final double restante = totalMetas - totalAtual;
+
+        Color progressColor = progresso >= 75
+            ? Colors.green
+            : progresso >= 50
+                ? Colors.lightGreen
+                : progresso >= 25
+                    ? Colors.orange
+                    : Colors.red;
+
+        return SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      "Progresso Geral",
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey[800],
                       ),
                     ),
-                  ],
-                  annotations: <GaugeAnnotation>[
-                    GaugeAnnotation(
-                      positionFactor: 0.5,
-                      angle: 90,
-                      widget: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            '${progresso.toStringAsFixed(1)}%',
-                            style: const TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          Text(
-                            'Concluído',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey[600],
-                            ),
-                          ),
-                        ],
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: progressColor.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        '${progresso.toStringAsFixed(1)}%',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: progressColor,
+                        ),
                       ),
                     ),
                   ],
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-          Card(
-            margin: const EdgeInsets.symmetric(horizontal: 20),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Total Arrecadado',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey[600],
-                            ),
-                          ),
-                          Text(
-                            'R\$ ${totalAtual.toStringAsFixed(2)}',
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text(
-                            'Faltam',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey[600],
-                            ),
-                          ),
-                          Text(
-                            'R\$ ${restante.toStringAsFixed(2)}',
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.red,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  LinearProgressIndicator(
-                    value: progresso / 100,
-                    backgroundColor: Colors.grey[200],
-                    color: Colors.green,
-                    minHeight: 8,
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Meta Total',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey[600],
-                        ),
-                      ),
-                      Text(
-                        'R\$ ${totalMeta.toStringAsFixed(2)}',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.green[700],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Objetivos Ativos',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey[600],
-                        ),
-                      ),
-                      Text(
-                        '${objetivos.length}',
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
               ),
-            ),
+              SizedBox(
+                height: 180,
+                child: SfRadialGauge(
+                  axes: <RadialAxis>[
+                    RadialAxis(
+                      minimum: 0,
+                      maximum: 100,
+                      showLabels: false,
+                      showTicks: false,
+                      radiusFactor: 0.8,
+                      axisLineStyle: AxisLineStyle(
+                        thickness: 0.2,
+                        color: Colors.grey.withOpacity(0.2),
+                        thicknessUnit: GaugeSizeUnit.factor,
+                        cornerStyle: CornerStyle.bothCurve,
+                      ),
+                      ranges: <GaugeRange>[
+                        GaugeRange(
+                          startValue: 0,
+                          endValue: progresso,
+                          color: progressColor,
+                          startWidth: 0.2,
+                          endWidth: 0.2,
+                        ),
+                      ],
+                      pointers: <GaugePointer>[
+                        NeedlePointer(
+                          value: progresso,
+                          needleLength: 0.6,
+                          needleStartWidth: 1,
+                          needleEndWidth: 8,
+                          knobStyle: KnobStyle(
+                            knobRadius: 0.08,
+                            color: progressColor,
+                            borderWidth: 0.05,
+                            borderColor: progressColor.withOpacity(0.5),
+                          ),
+                        ),
+                      ],
+                      annotations: <GaugeAnnotation>[
+                        GaugeAnnotation(
+                          positionFactor: 0.1,
+                          angle: 90,
+                          widget: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                '${progresso.toStringAsFixed(1)}%',
+                                style: TextStyle(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
+                                  color: progressColor,
+                                ),
+                              ),
+                              Text(
+                                'Concluído',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  color: Colors.grey[600],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    _buildValueIndicator(
+                      "Arrecadado",
+                      totalAtual,
+                      Colors.green,
+                      Icons.arrow_upward,
+                    ),
+                    _buildValueIndicator(
+                      "Restante",
+                      restante,
+                      Colors.red,
+                      Icons.arrow_downward,
+                    ),
+                    _buildValueIndicator(
+                      "Meta Total",
+                      totalMetas,
+                      Colors.blue,
+                      Icons.flag,
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              if (objetivosAtivos.isNotEmpty || metasBatidas.isNotEmpty) ...[
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (objetivosAtivos.isNotEmpty) ...[
+                        const Text(
+                          "Objetivos Ativos",
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.green,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        ...objetivosAtivos
+                            .map((obj) => _buildObjectiveItem(obj))
+                            .toList(),
+                      ],
+                      if (metasBatidas.isNotEmpty) ...[
+                        const SizedBox(height: 16),
+                        const Text(
+                          "Metas Concluídas",
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.green,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        ...metasBatidas
+                            .map((obj) =>
+                                _buildObjectiveItem(obj, isConcluido: true))
+                            .toList(),
+                      ],
+                    ],
+                  ),
+                ),
+              ] else ...[
+                Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.flag, size: 50, color: Colors.grey[400]),
+                      const SizedBox(height: 16),
+                      const Text(
+                        "Nenhum objetivo cadastrado",
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.grey,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextButton(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (context) => const ObjetivoScreen()),
+                          );
+                        },
+                        child: const Text('Criar Objetivos'),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              const SizedBox(height: 16),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildValueIndicator(
+      String label, double value, Color color, IconData icon) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.2),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, size: 20, color: color),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.grey[600],
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          _formatoReal.format(value),
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildObjectiveItem(Objetivo objetivo, {bool isConcluido = false}) {
+    final double progresso =
+        isConcluido ? 100.0 : (objetivo.valorAtual / objetivo.meta) * 100.0;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.1),
+            spreadRadius: 1,
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  objetivo.nome,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    decoration: isConcluido ? TextDecoration.lineThrough : null,
+                    color: isConcluido ? Colors.green : Colors.black,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (objetivo.prioridade && !isConcluido)
+                const Icon(Icons.star, size: 16, color: Colors.amber),
+              if (isConcluido)
+                const Icon(Icons.check_circle, size: 16, color: Colors.green),
+            ],
+          ),
+          const SizedBox(height: 8),
+          LinearProgressIndicator(
+            value: progresso / 100,
+            backgroundColor: Colors.grey[200],
+            color: isConcluido
+                ? Colors.green
+                : progresso >= 75
+                    ? Colors.green
+                    : progresso >= 50
+                        ? Colors.lightGreen
+                        : progresso >= 25
+                            ? Colors.orange
+                            : Colors.red,
+            minHeight: 6,
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                isConcluido
+                    ? _formatoReal.format(objetivo.meta)
+                    : _formatoReal.format(objetivo.valorAtual),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey[700],
+                ),
+              ),
+              Text(
+                _formatoReal.format(objetivo.meta),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey[600],
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -627,9 +907,6 @@ class _GraficoScreenState extends State<GraficoScreen> {
       }
     }
 
-    final todasCategorias =
-        {...receitasPorCategoria.keys, ...despesasPorCategoria.keys}.toList();
-
     if (receitasPorCategoria.isEmpty && despesasPorCategoria.isEmpty) {
       return const Center(
         child: Text(
@@ -639,151 +916,145 @@ class _GraficoScreenState extends State<GraficoScreen> {
       );
     }
 
-    return BarChart(
-      BarChartData(
-        alignment: BarChartAlignment.spaceAround,
-        maxY: _calculateMaxY(receitasPorCategoria, despesasPorCategoria),
-        barTouchData: BarTouchData(
-          enabled: true,
-          touchTooltipData: BarTouchTooltipData(
-            tooltipBgColor: Colors.grey[800],
-            getTooltipItem: (group, groupIndex, rod, rodIndex) {
-              final categoria = todasCategorias[group.x.toInt()];
-              final isReceita = rodIndex == 0;
-              final valor = isReceita
-                  ? receitasPorCategoria[categoria] ?? 0
-                  : despesasPorCategoria[categoria] ?? 0;
+    final totalReceitas =
+        receitasPorCategoria.values.fold(0.0, (sum, value) => sum + value);
+    final totalDespesas =
+        despesasPorCategoria.values.fold(0.0, (sum, value) => sum + value);
+    final maxY =
+        (totalReceitas > totalDespesas ? totalReceitas : totalDespesas) * 1.2;
 
-              return BarTooltipItem(
-                '$categoria\n${isReceita ? 'Receita' : 'Despesa'}: R\$ ${valor.toStringAsFixed(2)}',
-                const TextStyle(color: Colors.white),
-              );
-            },
-          ),
-        ),
-        titlesData: FlTitlesData(
-          show: true,
-          leftTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              reservedSize: 40,
-              interval: _calculateInterval(
-                  receitasPorCategoria, despesasPorCategoria),
-              getTitlesWidget: (double value, TitleMeta meta) {
-                return Text(
-                  "R\$ ${value.toInt()}",
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Colors.black54,
-                  ),
-                );
-              },
+    return Column(
+      children: [
+        Expanded(
+          child: BarChart(
+            BarChartData(
+              alignment: BarChartAlignment.spaceAround,
+              maxY: maxY,
+              minY: 0,
+              barTouchData: BarTouchData(
+                enabled: true,
+                touchTooltipData: BarTouchTooltipData(
+                  tooltipBgColor: Colors.grey[800],
+                  tooltipMargin: 8, // Margem adicional para o tooltip
+                  getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                    final isReceita = group.x.toInt() == 0;
+                    final categorias = isReceita
+                        ? receitasPorCategoria.keys.toList()
+                        : despesasPorCategoria.keys.toList();
+                    final valores = isReceita
+                        ? receitasPorCategoria.values.toList()
+                        : despesasPorCategoria.values.toList();
+
+                    if (rodIndex < categorias.length) {
+                      return BarTooltipItem(
+                        '${categorias[rodIndex]}\n${_formatoReal.format(valores[rodIndex])}',
+                        const TextStyle(color: Colors.white),
+                      );
+                    }
+                    return BarTooltipItem('', const TextStyle());
+                  },
+                  fitInsideVertically: true, // Ajusta verticalmente dentro do espaço disponível
+                  fitInsideHorizontally: true, // Ajusta horizontalmente dentro do espaço disponível
+                  direction: TooltipDirection.top, // Direção fixa para cima
+                ),
+              ),
+              titlesData: FlTitlesData(show: false),
+              gridData: FlGridData(show: false),
+              borderData: FlBorderData(show: false),
+              barGroups: [
+                // Coluna de Receitas
+                BarChartGroupData(
+                  x: 0,
+                  groupVertically: true,
+                  barRods: _buildStackedRods(receitasPorCategoria, true),
+                  barsSpace: 0,
+                ),
+                // Coluna de Despesas
+                BarChartGroupData(
+                  x: 1,
+                  groupVertically: true,
+                  barRods: _buildStackedRods(despesasPorCategoria, false),
+                  barsSpace: 0,
+                ),
+              ],
             ),
           ),
-          bottomTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              reservedSize: 30,
-              getTitlesWidget: (double value, TitleMeta meta) {
-                final index = value.toInt();
-                if (index >= 0 && index < todasCategorias.length) {
-                  return Padding(
-                    padding: const EdgeInsets.only(top: 8.0),
-                    child: Text(
-                      todasCategorias[index],
-                      style: const TextStyle(
-                        fontSize: 10,
-                        color: Colors.black54,
-                      ),
-                      textAlign: TextAlign.center,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  );
-                }
-                return const Text('');
-              },
-            ),
-          ),
         ),
-        borderData: FlBorderData(
-          show: true,
-          border: Border.all(
-            color: Colors.grey[400]!,
-            width: 1,
-          ),
+        // Legenda de cores
+        _buildCategoryLegend(
+          receitasPorCategoria,
+          despesasPorCategoria,
         ),
-        gridData: FlGridData(
-          show: true,
-          drawVerticalLine: false,
-          horizontalInterval:
-              _calculateInterval(receitasPorCategoria, despesasPorCategoria),
-          getDrawingHorizontalLine: (value) {
-            return FlLine(
-              color: Colors.grey[300],
-              strokeWidth: 1,
-            );
-          },
-        ),
-        barGroups: _buildBarGroups(
-            receitasPorCategoria, despesasPorCategoria, todasCategorias),
-      ),
+      ],
     );
   }
 
-  double _calculateMaxY(
-      Map<String, double> receitas, Map<String, double> despesas) {
-    final maxReceita = receitas.values.isNotEmpty
-        ? receitas.values.reduce((a, b) => a > b ? a : b)
-        : 0;
-    final maxDespesa = despesas.values.isNotEmpty
-        ? despesas.values.reduce((a, b) => a > b ? a : b)
-        : 0;
-    final maxValue = maxReceita > maxDespesa ? maxReceita : maxDespesa;
-    return (maxValue * 1.2).ceilToDouble();
-  }
+  List<BarChartRodData> _buildStackedRods(
+      Map<String, double> dados, bool isReceita) {
+    final List<BarChartRodData> rods = [];
+    double acumulado = 0;
+    int colorIndex = 0;
 
-  double _calculateInterval(
-      Map<String, double> receitas, Map<String, double> despesas) {
-    final maxY = _calculateMaxY(receitas, despesas);
-    if (maxY <= 500) return 100;
-    if (maxY <= 1000) return 200;
-    if (maxY <= 5000) return 500;
-    return 1000;
-  }
+    final sortedEntries = dados.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
 
-  List<BarChartGroupData> _buildBarGroups(Map<String, double> receitas,
-      Map<String, double> despesas, List<String> todasCategorias) {
-    return List.generate(todasCategorias.length, (index) {
-      final categoria = todasCategorias[index];
-      final receita = receitas[categoria] ?? 0;
-      final despesa = despesas[categoria] ?? 0;
-
-      return BarChartGroupData(
-        x: index,
-        groupVertically: true,
-        barRods: [
-          BarChartRodData(
-            toY: receita,
-            color: Colors.green,
-            width: 12,
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(2),
-              topRight: Radius.circular(2),
-            ),
-          ),
-          BarChartRodData(
-            toY: despesa,
-            color: Colors.red,
-            width: 12,
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(2),
-              topRight: Radius.circular(2),
-            ),
-          ),
-        ],
+    for (var entry in sortedEntries) {
+      rods.add(
+        BarChartRodData(
+          fromY: acumulado,
+          toY: acumulado + entry.value,
+          color: isReceita
+              ? _coresReceitas[colorIndex % _coresReceitas.length]
+              : _coresDespesas[colorIndex % _coresDespesas.length],
+          width: 30,
+          borderRadius: BorderRadius.zero,
+        ),
       );
-    });
+      acumulado += entry.value;
+      colorIndex++;
+    }
+
+    return rods;
+  }
+
+  Widget _buildCategoryLegend(
+      Map<String, double> receitas, Map<String, double> despesas) {
+    final allCategories = {...receitas.keys, ...despesas.keys}.toList();
+
+    return Container(
+      padding: const EdgeInsets.all(8),
+      height: 60,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        itemCount: allCategories.length,
+        itemBuilder: (context, index) {
+          final categoria = allCategories[index];
+          final isReceita = receitas.containsKey(categoria);
+          final color = isReceita
+              ? _coresReceitas[index % _coresReceitas.length]
+              : _coresDespesas[index % _coresDespesas.length];
+
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 12,
+                  height: 12,
+                  color: color,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  categoria,
+                  style: const TextStyle(fontSize: 12),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
   }
 
   Widget _buildLegend(List<Map<String, String>> movimentacoes) {

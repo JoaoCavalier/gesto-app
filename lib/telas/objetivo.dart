@@ -5,6 +5,29 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'package:provider/provider.dart';
 
+class BrazilianCurrencyInputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue, TextEditingValue newValue) {
+    if (newValue.text.isEmpty) {
+      return newValue;
+    }
+
+    String cleanedText = newValue.text.replaceAll(RegExp(r'[^\d]'), '');
+    double value = double.parse(cleanedText) / 100;
+    String formattedText = NumberFormat.currency(
+      locale: 'pt_BR',
+      symbol: '',
+      decimalDigits: 2,
+    ).format(value);
+
+    return TextEditingValue(
+      text: formattedText,
+      selection: TextSelection.collapsed(offset: formattedText.length),
+    );
+  }
+}
+
 class Objetivo {
   String nome;
   double meta;
@@ -68,44 +91,48 @@ class ObjetivoProvider with ChangeNotifier {
       'metas_batidas',
       _metasBatidas.map((obj) => obj.toJson()).toList(),
     );
-  }
-
-  void adicionarObjetivo(Objetivo objetivo) {
-    _objetivos.add(objetivo);
-    salvarObjetivos();
     notifyListeners();
   }
 
-  void atualizarObjetivo(int index, Objetivo objetivo) {
-    // Verifica se o objetivo foi concluído
+  Future<void> adicionarObjetivo(Objetivo objetivo) async {
+    _objetivos.add(objetivo);
+    await salvarObjetivos();
+  }
+
+  Future<void> atualizarObjetivo(int index, Objetivo objetivo) async {
     if (objetivo.valorAtual >= objetivo.meta) {
       _metasBatidas.add(objetivo);
       _objetivos.removeAt(index);
     } else {
       _objetivos[index] = objetivo;
     }
-    salvarObjetivos();
-    notifyListeners();
+    await salvarObjetivos();
   }
 
-  void removerObjetivo(int index) {
+  Future<void> removerObjetivo(int index) async {
     _objetivos.removeAt(index);
-    salvarObjetivos();
-    notifyListeners();
+    await salvarObjetivos();
   }
 
-  void removerObjetivoConcluido(int index) {
+  Future<void> removerObjetivoConcluido(int index) async {
     _metasBatidas.removeAt(index);
-    salvarObjetivos();
+    await salvarObjetivos();
     notifyListeners();
   }
 
-  void concluirObjetivo(int index) {
+  Future<void> concluirObjetivo(int index) async {
     final objetivo = _objetivos[index];
     _metasBatidas.add(objetivo);
     _objetivos.removeAt(index);
-    salvarObjetivos();
-    notifyListeners();
+    await salvarObjetivos();
+  }
+
+  double calcularTotalMetas() {
+    return _objetivos.fold(0.0, (sum, obj) => sum + obj.meta);
+  }
+
+  double calcularTotalEconomizado() {
+    return _metasBatidas.fold(0.0, (sum, obj) => sum + obj.valorAtual);
   }
 }
 
@@ -139,15 +166,11 @@ class _ObjetivoScreenState extends State<ObjetivoScreen> {
   }
 
   double _calcularTotalMetas() {
-    return Provider.of<ObjetivoProvider>(context)
-        .objetivos
-        .fold(0.0, (sum, objetivo) => sum + objetivo.meta);
+    return Provider.of<ObjetivoProvider>(context).calcularTotalMetas();
   }
 
   double _calcularTotalEconomizado() {
-    return Provider.of<ObjetivoProvider>(context)
-        .objetivos
-        .fold(0.0, (sum, objetivo) => sum + objetivo.valorAtual);
+    return Provider.of<ObjetivoProvider>(context).calcularTotalEconomizado();
   }
 
   @override
@@ -502,21 +525,17 @@ class _ObjetivoScreenState extends State<ObjetivoScreen> {
                     decoration:
                         const InputDecoration(labelText: 'Nome do Objetivo'),
                   ),
+                  const SizedBox(height: 10),
                   TextField(
                     controller: metaController,
-                    decoration: const InputDecoration(labelText: 'Meta (R\$)'),
+                    decoration: const InputDecoration(
+                      labelText: 'Meta (R\$)',
+                      hintText: '0,00',
+                    ),
                     keyboardType: TextInputType.number,
                     inputFormatters: [
-                      FilteringTextInputFormatter.allow(
-                          RegExp(r'^\d*\,?\d{0,2}')),
+                      BrazilianCurrencyInputFormatter(),
                     ],
-                    onChanged: (value) {
-                      metaController.value = metaController.value.copyWith(
-                        text: value.replaceAll('.', '').replaceAll(',', '.'),
-                        selection:
-                            TextSelection.collapsed(offset: value.length),
-                      );
-                    },
                   ),
                   const SizedBox(height: 10),
                   Row(
@@ -542,7 +561,13 @@ class _ObjetivoScreenState extends State<ObjetivoScreen> {
                 TextButton(
                   onPressed: () {
                     final nome = nomeController.text;
-                    final meta = double.tryParse(metaController.text) ?? 0.0;
+                    final metaText = metaController.text
+                        .replaceAll('R\$', '')
+                        .replaceAll('.', '')
+                        .replaceAll(',', '.')
+                        .trim();
+                    final meta = double.tryParse(metaText) ?? 0.0;
+
                     if (nome.isNotEmpty && meta > 0) {
                       Provider.of<ObjetivoProvider>(context, listen: false)
                           .adicionarObjetivo(
@@ -553,6 +578,14 @@ class _ObjetivoScreenState extends State<ObjetivoScreen> {
                         ),
                       );
                       Navigator.pop(context);
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content:
+                              Text('Preencha todos os campos corretamente!'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
                     }
                   },
                   child: const Text('Criar'),
@@ -590,21 +623,17 @@ class _ObjetivoScreenState extends State<ObjetivoScreen> {
                     decoration:
                         const InputDecoration(labelText: 'Nome do Objetivo'),
                   ),
+                  const SizedBox(height: 10),
                   TextField(
                     controller: metaController,
-                    decoration: const InputDecoration(labelText: 'Meta (R\$)'),
+                    decoration: const InputDecoration(
+                      labelText: 'Meta (R\$)',
+                      hintText: '0,00',
+                    ),
                     keyboardType: TextInputType.number,
                     inputFormatters: [
-                      FilteringTextInputFormatter.allow(
-                          RegExp(r'^\d*\,?\d{0,2}')),
+                      BrazilianCurrencyInputFormatter(),
                     ],
-                    onChanged: (value) {
-                      metaController.value = metaController.value.copyWith(
-                        text: value.replaceAll('.', '').replaceAll(',', '.'),
-                        selection:
-                            TextSelection.collapsed(offset: value.length),
-                      );
-                    },
                   ),
                   const SizedBox(height: 10),
                   Row(
@@ -630,7 +659,13 @@ class _ObjetivoScreenState extends State<ObjetivoScreen> {
                 TextButton(
                   onPressed: () {
                     final nome = nomeController.text;
-                    final meta = double.tryParse(metaController.text) ?? 0.0;
+                    final metaText = metaController.text
+                        .replaceAll('R\$', '')
+                        .replaceAll('.', '')
+                        .replaceAll(',', '.')
+                        .trim();
+                    final meta = double.tryParse(metaText) ?? 0.0;
+
                     if (nome.isNotEmpty && meta > 0) {
                       Provider.of<ObjetivoProvider>(context, listen: false)
                           .atualizarObjetivo(
@@ -643,6 +678,14 @@ class _ObjetivoScreenState extends State<ObjetivoScreen> {
                         ),
                       );
                       Navigator.pop(context);
+                    } else {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content:
+                              Text('Preencha todos os campos corretamente!'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
                     }
                   },
                   child: const Text('Salvar'),
@@ -681,18 +724,13 @@ class _ObjetivoScreenState extends State<ObjetivoScreen> {
                 controller: valorController,
                 decoration: const InputDecoration(
                   labelText: 'Valor (R\$)',
+                  hintText: '0,00',
                   border: OutlineInputBorder(),
                 ),
                 keyboardType: TextInputType.number,
                 inputFormatters: [
-                  FilteringTextInputFormatter.allow(RegExp(r'^\d*\,?\d{0,2}')),
+                  BrazilianCurrencyInputFormatter(),
                 ],
-                onChanged: (value) {
-                  valorController.value = valorController.value.copyWith(
-                    text: value.replaceAll('.', '').replaceAll(',', '.'),
-                    selection: TextSelection.collapsed(offset: value.length),
-                  );
-                },
               ),
             ],
           ),
@@ -703,7 +741,13 @@ class _ObjetivoScreenState extends State<ObjetivoScreen> {
             ),
             TextButton(
               onPressed: () {
-                final valor = double.tryParse(valorController.text) ?? 0.0;
+                final valorText = valorController.text
+                    .replaceAll('R\$', '')
+                    .replaceAll('.', '')
+                    .replaceAll(',', '.')
+                    .trim();
+                final valor = double.tryParse(valorText) ?? 0.0;
+
                 if (valor <= 0) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(

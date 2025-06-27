@@ -10,9 +10,9 @@ class InterHttpClient {
   static const String _passphrase =
       'your_passphrase'; // Troque pela senha (se houver)
   static const String _clientId =
-      '5ae9ef44-c8e4-4309-843d-b6e205496a51'; // Troque pelo client_id
+      'f52154d4-de91-47ba-b8b8-b8bf02dba593'; // Troque pelo client_id
   static const String _clientSecret =
-      '50e5d507-b8bd-4d1a-8580-2ad582e35647'; // Troque pela secret
+      '8dc1f647-f522-4300-9fa7-0198fd782175'; // Troque pela secret
   static const String _tokenUrl =
       'https://cdpj.partners.bancointer.com.br/oauth/v2/token';
 
