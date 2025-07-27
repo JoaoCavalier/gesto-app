@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/widgets.dart';
 import 'package:projeto_flutter/_common/my_colors.dart';
 import 'package:projeto_flutter/_common/my_snackbar.dart';
 import 'package:projeto_flutter/components/decoration_field_authentication.dart';
@@ -16,6 +15,7 @@ class AthenticationTela extends StatefulWidget {
 
 class _AthenticationTelaState extends State<AthenticationTela> {
   bool queroEntrar = true;
+  bool isLoading = false;
   final _formKey = GlobalKey<FormState>();
 
   final TextEditingController _emailController = TextEditingController();
@@ -26,6 +26,15 @@ class _AthenticationTelaState extends State<AthenticationTela> {
   final AuthenticationService authenService = AuthenticationService();
   final GoogleSignIn googleSignIn = GoogleSignIn();
   final FirebaseAuth firebaseAuth = FirebaseAuth.instance;
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _senhaController.dispose();
+    _nomeController.dispose();
+    _confirmController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -69,17 +78,17 @@ class _AthenticationTelaState extends State<AthenticationTela> {
                           const SizedBox(height: 20),
                           TextFormField(
                             controller: _emailController,
-                            decoration:
-                                getAuthenticationInputDecoration("E-mail"),
+                            decoration: getAuthenticationInputDecoration("E-mail"),
+                            keyboardType: TextInputType.emailAddress,
                             validator: (String? value) {
-                              if (value == null) {
+                              if (value == null || value.isEmpty) {
                                 return "O E-mail não pode ser vazio";
                               }
                               if (value.length < 5) {
                                 return "O E-mail é muito curto";
                               }
                               if (!value.contains("@")) {
-                                return "O E-mail não é Valido";
+                                return "O E-mail não é válido";
                               }
                               return null;
                             },
@@ -89,70 +98,57 @@ class _AthenticationTelaState extends State<AthenticationTela> {
                             controller: _senhaController,
                             obscureText: true,
                             validator: (value) {
-                              if (value == null || value.length < 4) {
-                                return "Insira uma senha válida.";
+                              if (value == null || value.length < 6) {
+                                return "A senha deve ter pelo menos 6 caracteres";
                               }
                               return null;
                             },
-                            decoration:
-                                getAuthenticationInputDecoration('Senha'),
+                            decoration: getAuthenticationInputDecoration('Senha'),
                           ),
-                          Visibility(
-                            visible: queroEntrar,
-                            child: TextButton(
-                              onPressed: () {
-                                esqueciMinhaSenhaClicado();
-                              },
+                          if (queroEntrar) ...[
+                            TextButton(
+                              onPressed: isLoading ? null : esqueciMinhaSenhaClicado,
                               child: const Text(
                                 "Esqueci minha senha.",
                                 style: TextStyle(color: Colors.green),
                               ),
                             ),
-                          ),
+                          ],
                           const SizedBox(height: 10),
-                          Visibility(
-                            visible: !queroEntrar,
-                            child: Column(
-                              children: [
-                                TextFormField(
-                                  controller: _confirmController,
-                                  obscureText: true,
-                                  validator: (String? value) {
-                                    if (value == null || value.length < 4) {
-                                      return "Insira uma confirmação de senha válida.";
-                                    }
-                                    if (value != _senhaController.text) {
-                                      return "As senhas devem ser iguais.";
-                                    }
-                                    return null;
-                                  },
-                                  decoration: getAuthenticationInputDecoration(
-                                      'Confirme a Senha'),
-                                ),
-                                const SizedBox(height: 10),
-                                TextFormField(
-                                  controller: _nomeController,
-                                  decoration:
-                                      getAuthenticationInputDecoration('Nome'),
-                                  validator: (String? value) {
-                                    if (value == null) {
-                                      return "O Nome não pode ser vazio";
-                                    }
-                                    if (value.length < 5) {
-                                      return "O Nome é muito curto";
-                                    }
-                                    return null;
-                                  },
-                                ),
-                                const SizedBox(height: 10),
-                              ],
+                          if (!queroEntrar) ...[
+                            TextFormField(
+                              controller: _confirmController,
+                              obscureText: true,
+                              validator: (String? value) {
+                                if (value == null || value.isEmpty) {
+                                  return "Confirme sua senha";
+                                }
+                                if (value != _senhaController.text) {
+                                  return "As senhas não coincidem";
+                                }
+                                return null;
+                              },
+                              decoration: getAuthenticationInputDecoration('Confirme a Senha'),
                             ),
-                          ),
+                            const SizedBox(height: 10),
+                            TextFormField(
+                              controller: _nomeController,
+                              decoration: getAuthenticationInputDecoration('Nome'),
+                              validator: (String? value) {
+                                if (value == null || value.isEmpty) {
+                                  return "O nome não pode ser vazio";
+                                }
+                                if (value.length < 3) {
+                                  return "O nome é muito curto";
+                                }
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 10),
+                          ],
                           const SizedBox(height: 20),
                           ElevatedButton(
-                            onPressed: () {
-                              mainButtonClick();
-                            },
+                            onPressed: isLoading ? null : mainButtonClick,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.green,
                               padding: const EdgeInsets.symmetric(vertical: 15),
@@ -160,76 +156,73 @@ class _AthenticationTelaState extends State<AthenticationTela> {
                                 borderRadius: BorderRadius.circular(10),
                               ),
                             ),
-                            child: Text(
-                              (queroEntrar) ? 'Login' : 'Cadastrar',
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
-                            ),
+                            child: isLoading
+                                ? const CircularProgressIndicator(color: Colors.white)
+                                : Text(
+                                    queroEntrar ? 'Login' : 'Cadastrar',
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                  ),
                           ),
-                          Visibility(
-                            visible: queroEntrar,
-                            child: const Center(
-                              child: Padding(
-                                padding: EdgeInsets.symmetric(vertical: 10),
+                          if (queroEntrar) ...[
+                            const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 10),
+                              child: Center(
                                 child: Text(
                                   "ou",
                                   style: TextStyle(color: Colors.green),
                                 ),
                               ),
                             ),
-                          ),
-                          Visibility(
-                            visible: queroEntrar,
-                            child: ElevatedButton(
-                              onPressed: () {
-                                signInWithGoogle().then((UserCredential user) {
-                                  print(user);
-                                });
-                              },
+                            ElevatedButton(
+                              onPressed: isLoading ? null : _handleGoogleSignIn,
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.white,
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 15),
+                                padding: const EdgeInsets.symmetric(vertical: 15),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(10),
                                 ),
                               ),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                mainAxisSize: MainAxisSize.min,
-                                children: <Widget>[
-                                  Container(
-                                    width: 25,
-                                    height: 25,
-                                    child: Image.network(
-                                      'http://pngimg.com/uploads/google/google_PNG19635.png',
-                                      fit: BoxFit.cover,
+                              child: isLoading
+                                  ? const CircularProgressIndicator()
+                                  : Row(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Image.network(
+                                          'http://pngimg.com/uploads/google/google_PNG19635.png',
+                                          width: 25,
+                                          height: 25,
+                                        ),
+                                        const SizedBox(width: 10),
+                                        const Text(
+                                          "Logar com o Google",
+                                          style: TextStyle(color: Colors.black),
+                                        ),
+                                      ],
                                     ),
-                                  ),
-                                  const SizedBox(width: 10.0),
-                                  const Text(
-                                    "Logar com o Google",
-                                    style: TextStyle(color: Colors.black),
-                                  ),
-                                ],
-                              ),
                             ),
-                          ),
+                          ],
                           const SizedBox(height: 20),
                           TextButton(
-                            onPressed: () {
-                              setState(() {
-                                queroEntrar = !queroEntrar;
-                              });
-                            },
+                            onPressed: isLoading
+                                ? null
+                                : () {
+                                    setState(() {
+                                      queroEntrar = !queroEntrar;
+                                      _formKey.currentState?.reset();
+                                    });
+                                  },
                             child: Text(
-                              (queroEntrar)
+                              queroEntrar
                                   ? 'Ainda não tem uma conta? Cadastre-se!'
                                   : 'Já tem uma conta? Entre',
-                              style: const TextStyle(color: Colors.green, fontSize: 13),
+                              style: const TextStyle(
+                                color: Colors.green,
+                                fontSize: 13,
+                              ),
                             ),
                           ),
                         ],
@@ -245,102 +238,183 @@ class _AthenticationTelaState extends State<AthenticationTela> {
     );
   }
 
-  Future<UserCredential> signInWithGoogle() async {
-    final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
-
-    final GoogleSignInAuthentication? googleAuth =
-        await googleUser?.authentication;
-    final OAuthCredential credential = GoogleAuthProvider.credential(
-      accessToken: googleAuth?.accessToken,
-      idToken: googleAuth?.idToken,
-    );
-
-    return await FirebaseAuth.instance.signInWithCredential(credential);
-  }
-
-  mainButtonClick() {
-    String email = _emailController.text;
-    String senha = _senhaController.text;
-    String nome = _nomeController.text;
-
-    if (_formKey.currentState!.validate()) {
-      if (queroEntrar) {
-        _entrarUsuario(email: email, senha: senha);
-      } else {
-        _criarUsuario(email: email, senha: senha, nome: nome);
+  Future<void> _handleGoogleSignIn() async {
+    setState(() => isLoading = true);
+    try {
+      final UserCredential? user = await signInWithGoogle();
+      if (user != null && mounted) {
+        showSnackBar(
+          context: context,
+          text: "Login com Google realizado com sucesso",
+          isErro: false,
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        showSnackBar(
+          context: context,
+          text: "Erro ao fazer login com Google: $error",
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => isLoading = false);
       }
     }
   }
 
-  _entrarUsuario({required String email, required String senha}) {
-    authenService
-        .entrarUsuario(email: email, senha: senha)
-        .then((String? erro) {
-      if (erro == null) {
-        showSnackBar(
-          context: context,
-          text: "Conta logada com sucesso",
-          isErro: false,
-        );
-      } else {
-        showSnackBar(context: context, text: erro);
-      }
-    });
+  Future<UserCredential?> signInWithGoogle() async {
+    try {
+      // Forçar logout para garantir seleção de conta
+      await googleSignIn.signOut();
+      
+      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
+      if (googleUser == null) return null;
+
+      final GoogleSignInAuthentication googleAuth = 
+          await googleUser.authentication;
+      
+      final OAuthCredential credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      return await FirebaseAuth.instance.signInWithCredential(credential);
+    } catch (error) {
+      debugPrint("Erro no login com Google: $error");
+      rethrow;
+    }
   }
 
-  _criarUsuario({
+  void mainButtonClick() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => isLoading = true);
+    try {
+      if (queroEntrar) {
+        await _entrarUsuario(
+          email: _emailController.text.trim(),
+          senha: _senhaController.text.trim(),
+        );
+      } else {
+        await _criarUsuario(
+          email: _emailController.text.trim(),
+          senha: _senhaController.text.trim(),
+          nome: _nomeController.text.trim(),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _entrarUsuario({
+    required String email,
+    required String senha,
+  }) async {
+    final String? erro = await authenService.entrarUsuario(
+      email: email,
+      senha: senha,
+    );
+
+    if (!mounted) return;
+
+    if (erro == null) {
+      showSnackBar(
+        context: context,
+        text: "Login realizado com sucesso",
+        isErro: false,
+      );
+    } else {
+      showSnackBar(context: context, text: erro);
+    }
+  }
+
+  Future<void> _criarUsuario({
     required String email,
     required String senha,
     required String nome,
-  }) {
-    authenService.cadastrarUsuario(email: email, senha: senha, nome: nome).then(
-      (String? erro) {
-        if (erro != null) {
-          showSnackBar(context: context, text: erro);
-        }
-      },
+  }) async {
+    final String? erro = await authenService.cadastrarUsuario(
+      email: email,
+      senha: senha,
+      nome: nome,
     );
+
+    if (!mounted) return;
+
+    if (erro == null) {
+      showSnackBar(
+        context: context,
+        text: "Cadastro realizado com sucesso!",
+        isErro: false,
+      );
+      setState(() => queroEntrar = true);
+    } else {
+      showSnackBar(context: context, text: erro);
+    }
   }
 
-  esqueciMinhaSenhaClicado() {
-    String email = _emailController.text;
-    showDialog(
-      context: context,
-      builder: (context) {
-        TextEditingController resetPasswordSenhaController =
-            TextEditingController(text: email);
-        return AlertDialog(
-          title: const Text("Confirme o e-mail para redefinição de senha"),
-          content: TextFormField(
-            controller: resetPasswordSenhaController,
-            decoration: const InputDecoration(label: Text("Confirme o e-mail")),
-          ),
-          shape: const RoundedRectangleBorder(
-              borderRadius: BorderRadius.all(Radius.circular(32))),
-          actions: [
-            TextButton(
-              onPressed: () {
-                authenService
-                    .resetPassword(email: resetPasswordSenhaController.text)
-                    .then((String? erro) {
-                  if (erro == null) {
-                    showSnackBar(
-                      context: context,
-                      text: "E-mail de redefinição enviado!",
-                      isErro: false,
-                    );
-                  } else {
-                    showSnackBar(context: context, text: erro);
-                  }
+  Future<void> esqueciMinhaSenhaClicado() async {
+    final email = _emailController.text.trim();
+    
+    if (email.isEmpty || !email.contains("@")) {
+      showSnackBar(
+        context: context,
+        text: "Insira um e-mail válido para redefinição",
+      );
+      return;
+    }
 
-                  Navigator.pop(context);
-                });
-              },
-              child: const Text("Redefinir senha"),
-            ),
-          ],
-        );
-      },
+    final TextEditingController resetController = 
+        TextEditingController(text: email);
+
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Redefinir senha"),
+        content: TextFormField(
+          controller: resetController,
+          decoration: const InputDecoration(
+            labelText: "E-mail",
+            hintText: "Digite seu e-mail cadastrado",
+          ),
+          keyboardType: TextInputType.emailAddress,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancelar"),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              setState(() => isLoading = true);
+              
+              final String? erro = await authenService.resetPassword(
+                email: resetController.text.trim(),
+              );
+
+              if (!mounted) return;
+
+              setState(() => isLoading = false);
+              
+              if (erro == null) {
+                showSnackBar(
+                  context: context,
+                  text: "E-mail de redefinição enviado!",
+                  isErro: false,
+                );
+              } else {
+                showSnackBar(context: context, text: erro);
+              }
+            },
+            child: const Text("Enviar"),
+          ),
+        ],
+      ),
     );
   }
 }
